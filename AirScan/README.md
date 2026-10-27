@@ -182,3 +182,108 @@ transfer and resource limits for production scanning remain pending.
 
 Eight additional unit tests use simulated responses. No real scan job has yet
 been submitted or deleted by this implementation.
+
+## Experimental single-page flatbed scan
+
+The package now includes:
+
+- A URLSession transport for POST, GET, and DELETE job operations.
+- A single-page flatbed JPEG coordinator.
+- Explicit cleanup attempts after successful reads, errors, and task cancellation.
+- A separate `airscan-scan-flatbed` executable requiring `--scan`.
+
+The diagnostic executable remains read-only.
+
+Example, from the AirScan directory:
+
+```bash
+swift run \
+  --scratch-path "$HOME/Library/Caches/swift-paperless-AirScan-build" \
+  airscan-scan-flatbed \
+  --scan \
+  'http://SCANNER-IP/eSCL/' \
+  /tmp/flatbed-001.jpg
+
+WARNING: This command creates a real scan job.
+Initial settings are fixed: flatbed, RGB24, 150 dpi, JPEG, region 2480 x 3508
+in units of 1/300 inch, with zero offsets.
+The tool decodes the returned JPEG before saving and refuses to overwrite an
+existing output file. It does not yet preserve undecodable response data.
+Production document responses currently buffer one page in memory, limited to
+64 MiB. Other response bodies are limited to 64 KiB. File-backed transfer remains
+pending.
+The transport does not follow redirects or disable TLS validation. Resource
+timeouts are 120 seconds for GET and 30 seconds for POST/DELETE.
+Cleanup runs in a separate task so scan-task cancellation does not immediately
+cancel cleanup. The production DELETE transfer has a bounded resource timeout.
+Forced process termination, including terminal interruption, does not guarantee
+cleanup.
+If document retrieval succeeds but cleanup fails, the result retains the
+document and exposes a warning. If both fail, both errors are reported.
+An accepted POST without a usable returned job handle remains an uncertain
+state. Creation is not automatically retried.
+Four additional coordinator tests use a simulated transport. Real flatbed
+acceptance, image quality, cancellation, and cleanup behavior require device
+testing. ADF and duplex are not yet supported by this executable.
+
+### First successful real-device flatbed scan
+
+On 2026-10-27, the Canon MF750C II Series successfully completed the
+experimental flatbed workflow over HTTP:
+
+- Capabilities retrieved.
+- Job created with RGB24, 150 dpi, JPEG, and region 2480 x 3508.
+- One document retrieved and decoded as JPEG.
+- Output size: 328,987 bytes.
+- Decoded image dimensions: 1232 x 1744 pixels.
+- Cleanup returned an accepted deletion status or an already-removed status.
+
+This confirms the basic single-page workflow. Visual image quality, requested
+region fidelity, repeatability, cancellation, ADF, and duplex remain separate
+verification tasks.
+
+### Direct PDF output and repeatability testing
+
+The flatbed executable now selects the scanner-requested format from the output
+extension: .jpg/.jpeg requests image/jpeg; .pdf requests application/pdf.
+This is direct scanner output, not JPEG-to-PDF conversion.
+
+The coordinator now accepts flatbed JPEG and PDF settings. Earlier descriptions
+restricting it to JPEG are superseded by this section.
+
+For PDF output, the tool requires a readable, unlocked, single-page PDF and
+reports page dimensions and the number of characters extractable through PDFKit.
+The original response bytes are saved unchanged.
+
+Extractable text is an observation about the received PDF, not a general claim
+that AirScan exposes a selectable scanner-OCR function. The supplied Canon
+capabilities do not advertise an explicit OCR setting.
+
+Repeatability must be checked with consecutive real-device scans. A cleanup
+warning causes the tool to exit nonzero after saving the valid document, stopping
+the example scan loop.
+
+One additional unit test verifies PDF format selection and cleanup sequencing.
+PDF decoding, text extraction, and repeated device operation require hardware
+verification.
+
+### Successful consecutive PDF scans
+
+On 2026-10-27, two consecutive real-device flatbed scans on the Canon
+MF750C II Series succeeded using RGB24, 150 dpi, direct application/pdf output,
+and a region of 2480 x 3508.
+
+Both responses:
+- Decoded as readable single-page PDFs.
+- Reported a page size of 595.2 x 841.44 PDF points.
+- Contained zero characters extractable through PDFKit.
+- Completed cleanup with an accepted deletion or already-removed status.
+
+Response sizes were 335,151 and 335,058 bytes.
+
+This verifies repeatability for this particular flatbed workflow. It does not
+establish visual image quality, all settings combinations, ADF operation, duplex,
+or cancellation behavior.
+
+No extractable text layer was found in these two scanner-generated PDFs.
+This does not establish that the device lacks OCR through other workflows.
