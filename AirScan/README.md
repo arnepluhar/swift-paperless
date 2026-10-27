@@ -149,3 +149,36 @@ sharpening, and blank-page removal are not yet serialized.
 
 Six additional unit tests cover settings generation and validation. Their
 execution result must be checked locally.
+
+## Scan-job protocol client
+
+`ScanJobClient` provides explicit operations for:
+
+- Creating a job with validated settings.
+- Resolving its Location header.
+- Retrieving the next document.
+- Deleting a job.
+
+The client requires an injected `ScanJobTransport`. A production transport for
+these operations is not implemented yet.
+
+Location validation currently requires the same scheme, host, and effective port
+as the scanner endpoint, and one job-ID component beneath its ScanJobs path.
+A hostname alias returned for an IP-based endpoint is deliberately rejected
+until explicit device-identity handling is implemented.
+
+Creation is never automatically retried. If creation may have succeeded but no
+usable Location was received, the job state is uncertain.
+
+HTTP 404 from NextDocument returns nil. This alone does not establish that all
+expected pages were received. Scanner-status interpretation and handling of
+early, transient, or erroneous end responses remain to be implemented.
+
+Deletion is explicit. The full scan coordinator must still implement bounded
+cleanup after success, errors, and cancellation, without hiding cleanup failures.
+
+Document responses currently use Data in the transport contract. File-backed
+transfer and resource limits for production scanning remain pending.
+
+Eight additional unit tests use simulated responses. No real scan job has yet
+been submitted or deleted by this implementation.
