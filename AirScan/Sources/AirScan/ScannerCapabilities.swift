@@ -13,6 +13,7 @@ public struct ScannerCapabilities: Sendable, Equatable {
   /// Profiles remain separate: their values must not be freely cross-combined.
   public struct Profile: Sendable, Equatable {
     public let colorModes: [String]
+    public let contentTypes: [String]
     public let documentFormats: [String]
     public let resolutions: [Resolution]
   }
@@ -25,6 +26,7 @@ public struct ScannerCapabilities: Sendable, Equatable {
     public let minHeight: Int?
     public let maxHeight: Int?
     public let profiles: [Profile]
+    public let supportedIntents: [String]
   }
 
   public struct AdjustmentRange: Sendable, Equatable {
@@ -47,6 +49,8 @@ public struct ScannerCapabilities: Sendable, Equatable {
   }
 
   public let makeAndModel: String?
+  public let blankPageDetection: Bool?
+  public let blankPageDetectionAndRemoval: Bool?
   public let inputs: [Input]
   public let adjustments: [Adjustment: AdjustmentRange]
 }

@@ -62,6 +62,7 @@ public enum CapabilitiesParser {
           + (profile.child("DocumentFormats")?.values("DocumentFormatExt") ?? [])
         profiles.append(.init(
           colorModes: profile.child("ColorModes")?.values("ColorMode") ?? [],
+          contentTypes: profile.child("ContentTypes")?.values("ContentType") ?? [],
           documentFormats: Array(Set(formats)).sorted(),
           resolutions: resolutions
         ))
@@ -69,7 +70,8 @@ public enum CapabilitiesParser {
       inputs.append(.init(source: source,
         minWidth: try node.integer("MinWidth"), maxWidth: try node.integer("MaxWidth"),
         minHeight: try node.integer("MinHeight"), maxHeight: try node.integer("MaxHeight"),
-        profiles: profiles))
+        profiles: profiles,
+        supportedIntents: node.child("SupportedIntents")?.values("Intent") ?? []))
     }
     var adjustments: [ScannerCapabilities.Adjustment: ScannerCapabilities.AdjustmentRange] = [:]
     for adjustment in ScannerCapabilities.Adjustment.allCases {
@@ -86,8 +88,13 @@ public enum CapabilitiesParser {
       if let step, step <= 0 { throw CapabilitiesParsingError.invalidValue(adjustment.rawValue) }
       adjustments[adjustment] = .init(minimum: minimum, maximum: maximum, normal: normal, step: step)
     }
-    return .init(makeAndModel: root.child("MakeAndModel", namespace: pwgNamespace)?.value,
-                 inputs: inputs, adjustments: adjustments)
+    return .init(
+      makeAndModel: root.child("MakeAndModel", namespace: pwgNamespace)?.value,
+      blankPageDetection: try root.boolean("BlankPageDetection"),
+      blankPageDetectionAndRemoval: try root.boolean("BlankPageDetectionAndRemoval"),
+      inputs: inputs,
+      adjustments: adjustments
+    )
   }
 }
 
@@ -118,6 +125,15 @@ private final class CapabilityNode {
 
   func values(_ name: String, namespace: String = scanNamespace) -> [String] {
     children.filter { $0.matches(name, namespace: namespace) }.map(\.value)
+  }
+
+  func boolean(_ name: String) throws -> Bool? {
+    guard let node = child(name) else { return nil }
+    switch node.value {
+    case "true", "1": return true
+    case "false", "0": return false
+    default: throw CapabilitiesParsingError.invalidValue(name)
+    }
   }
 
   func integer(_ name: String) throws -> Int? {
