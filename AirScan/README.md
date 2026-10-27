@@ -123,3 +123,29 @@ On 2026-10-27:
 - Perform device and TestFlight testing.
 
 Advertised capabilities are not proof that a scan operation works.
+
+## Scan-settings serialization
+
+`ScanSettings` validates a requested source, region, color mode, output format,
+and symmetric resolution against parsed capabilities before generating XML.
+
+All selected profile-dependent values must coexist in a single setting profile.
+Values from different profiles are not freely combined.
+
+The initial serializer supports:
+
+- Flatbed, ADF simplex, and ADF duplex source selection.
+- Grayscale8 and RGB24.
+- JPEG and PDF.
+- Discrete symmetric resolutions.
+- A single region with zero X/Y offsets.
+- Explicit region dimensions in units of 1/300 inch.
+
+Unknown region limits cause validation to fail rather than using guessed limits.
+
+This serializer does not send scan jobs. Generated settings have not yet been
+accepted by real hardware. ADF centering, custom offsets, content types, intents,
+sharpening, and blank-page removal are not yet serialized.
+
+Six additional unit tests cover settings generation and validation. Their
+execution result must be checked locally.
