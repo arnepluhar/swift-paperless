@@ -287,3 +287,106 @@ or cancellation behavior.
 
 No extractable text layer was found in these two scanner-generated PDFs.
 This does not establish that the device lacks OCR through other workflows.
+
+### Successful three-page simplex feeder scan
+
+On 2026-10-27, the Canon MF750C II Series completed a three-page simplex
+feeder scan with unchanged settings after an earlier feeder jam was cleared.
+
+Observed sequence:
+- POST ScanJobs: HTTP 201.
+- Three NextDocument responses: HTTP 200, image/jpeg.
+- Each JPEG decoded as 1264 x 1744 pixels.
+- Fourth NextDocument response: HTTP 404.
+- Subsequent DELETE: HTTP 404, accepted as already removed.
+- A three-page combined PDF was generated.
+
+The status captured after the final document request reported, for the matching
+job URI:
+- JobState: Completed.
+- ImagesCompleted: 3.
+- JobStateReason: JobCompletedSuccessfully.
+
+Global status was Idle with ScannerAdfEmpty.
+
+These observations confirm successful protocol-level completion for this run.
+Visual page order, orientation, and cropping remain separate checks.
+
+The diagnostic logger currently labels all non-2xx responses as errors.
+Context-aware handling is pending: a final NextDocument 404 can accompany a
+successfully completed job, while an early 404 still requires investigation.
+
+Status parsing must match the current job URI and must not mistake historical
+canceled jobs for the state of the active operation.
+
+## Initial iOS app integration
+
+The app target now depends on the AirScan library product only. CLI products
+are not app dependencies, and the share extension does not gain an AirScan
+dependency.
+
+The document add menu opens a network-scanner sheet with:
+- A manually entered, locally persisted eSCL resource-root URL.
+- Explicit capability/status loading.
+- Advertised sources and setting profiles.
+- Status refresh and cancellation.
+- An optional bounded, in-memory debug report shared only by user action.
+
+The report does not intentionally include raw XML, serial numbers, job UUIDs,
+job URLs, or document contents. Device-provided model and capability strings
+remain visible and should be reviewed before sharing.
+
+This initial sheet does not create scan jobs or hand results to document import.
+Scan controls and PDF import are the next integration step.
+
+A local-network usage description was added to the app Info.plist.
+The existing upstream NSAllowsArbitraryLoads setting was not introduced or
+expanded by this change. ATS hardening and compatibility with existing
+Paperless endpoints remain a separate review item.
+
+UI strings are currently German development strings. String-catalog integration,
+English translations, and localized permission text remain pending.
+
+At the user's request, further test execution is paused. These app changes have
+not been compiled, run on iOS, or verified through TestFlight in this session.
+
+## Bonjour scanner discovery
+
+The network-scanner sheet now starts Bonjour discovery when opened.
+
+It browses:
+- _uscan._tcp for HTTP.
+- _uscans._tcp for HTTPS.
+
+The app resolves the advertised host and port and uses the TXT rs resource path.
+It does not guess /eSCL/ when rs is missing or invalid.
+
+Connections are grouped by a valid advertised UUID where available. Without a
+UUID, matching host/resource-path pairs are grouped conservatively. Duplicate
+resolved endpoint URLs within a group are suppressed.
+
+HTTPS options are listed first, but there is no automatic HTTPS-to-HTTP fallback.
+The user explicitly selects the offered connection.
+
+Manual address entry remains available in a collapsed fallback section.
+Selecting a discovered endpoint passes its resolved resource root to the existing
+capability/status loading model.
+
+The app declares both Bonjour service types in NSBonjourServices.
+
+The implementation uses Foundation NetServiceBrowser/NetService and schedules
+discovery and resolution on the main run loop. Delegate conformances use
+@preconcurrency at the MainActor boundary. Runtime callback isolation, discovery
+behavior, and deployment compatibility remain unverified.
+
+The optional debug report includes search progress, numeric errors, service
+counts, connection scheme, and resource paths. It intentionally omits discovered
+host addresses, device UUIDs, and raw TXT records from the shared report.
+The regular device-selection UI does display the chosen endpoint address.
+
+No new tests were added or executed for this integration, as requested.
+The code has not been compiled or run on iOS in this session.
+
+Remaining work includes automatic reconnection to a saved discovered device,
+interface-change handling, discovery retry policy, final API review, and app
+scan/import integration.
