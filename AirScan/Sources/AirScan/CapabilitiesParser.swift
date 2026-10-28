@@ -98,10 +98,10 @@ public enum CapabilitiesParser {
   }
 }
 
-private let scanNamespace = "http://schemas.hp.com/imaging/escl/2011/05/03"
-private let pwgNamespace = "http://www.pwg.org/schemas/2010/12/sm"
+let scanNamespace = "http://schemas.hp.com/imaging/escl/2011/05/03"
+let pwgNamespace = "http://www.pwg.org/schemas/2010/12/sm"
 
-private final class CapabilityNode {
+final class CapabilityNode {
   let name: String
   let namespace: String
   let attributes: [String: String]
@@ -143,7 +143,7 @@ private final class CapabilityNode {
   }
 }
 
-private final class CapabilityTreeBuilder: NSObject, XMLParserDelegate {
+final class CapabilityTreeBuilder: NSObject, XMLParserDelegate {
   var root: CapabilityNode?
   var stack: [CapabilityNode] = []
   var failure: CapabilitiesParsingError?

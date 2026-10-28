@@ -6,11 +6,16 @@ let package = Package(
   platforms: [.iOS(.v17), .macOS(.v14)],
   products: [
     .library(name: "AirScan", targets: ["AirScan"]),
+    .executable(name: "airscan-scan-feeder", targets: ["AirScanScanFeeder"]),
     .executable(name: "airscan-scan-flatbed", targets: ["AirScanScanFlatbed"]),
     .executable(name: "airscan-diagnose", targets: ["AirScanDiagnose"]),
   ],
   targets: [
     .target(name: "AirScan"),
+    .executableTarget(
+      name: "AirScanScanFeeder",
+      dependencies: ["AirScan"]
+    ),
     .executableTarget(
       name: "AirScanScanFlatbed",
       dependencies: ["AirScan"]
