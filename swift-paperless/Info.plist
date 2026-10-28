@@ -50,5 +50,12 @@
 		<key>UISceneConfigurations</key>
 		<dict/>
 	</dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Swift Paperless connects to document scanners on your local network to read their settings and scan documents.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_uscan._tcp</string>
+		<string>_uscans._tcp</string>
+	</array>
 </dict>
 </plist>

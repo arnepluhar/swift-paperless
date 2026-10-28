@@ -98,6 +98,7 @@ struct DocumentView: View {
   @State private var isDocumentScannerAvailable = false
   @State private var isDataScannerAvailable = false
   @State private var showDocumentScanner = false
+  @State private var showAirScanScanner = false
   @State private var showCreateModal = false
 
   @StateObject private var importModel = DocumentImportModel()
@@ -313,6 +314,12 @@ struct DocumentView: View {
             } label: {
               Label(String(localized: .app(.scanDocument)), systemImage: "doc.viewfinder")
             }
+          }
+
+          Button {
+            showAirScanScanner = true
+          } label: {
+            Label("Netzwerkscanner", systemImage: "scanner")
           }
 
           Button {
@@ -723,6 +730,10 @@ struct DocumentView: View {
         }
       }
     )
+
+    .sheet(isPresented: $showAirScanScanner) {
+      AirScanScannerView()
+    }
 
     .fullScreenCover(isPresented: $showDocumentScanner) {
       DocumentScannerView(
