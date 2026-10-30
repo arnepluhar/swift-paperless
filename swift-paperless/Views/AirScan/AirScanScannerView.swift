@@ -7,6 +7,7 @@ struct AirScanScannerView: View {
   @StateObject private var model = AirScanScannerModel()
   @StateObject private var discovery = AirScanDiscoveryModel()
   @StateObject private var selection = AirScanSelectionModel()
+  @StateObject private var scan = AirScanRunModel()
   @State private var manualExpanded = false
 
   @AppStorage("airscan.manualResourceRoot")
@@ -14,6 +15,9 @@ struct AirScanScannerView: View {
 
   @AppStorage("airscan.debugPanelEnabled")
   private var debugEnabled = false
+  private var isWorking: Bool {
+  model.isBusy || scan.isBusy
+  }
 
   var body: some View {
     NavigationStack {
@@ -52,7 +56,7 @@ struct AirScanScannerView: View {
                       .foregroundStyle(.secondary)
                   }
                 }
-                .disabled(model.isBusy)
+                .disabled(isWorking)
               }
             }
             .padding(.vertical, 4)
@@ -61,7 +65,7 @@ struct AirScanScannerView: View {
           Button("Erneut suchen") {
             discovery.start()
           }
-          .disabled(model.isBusy)
+          .disabled(isWorking)
 
           if let message = discovery.errorMessage {
             Text(message)
@@ -89,7 +93,7 @@ struct AirScanScannerView: View {
             .keyboardType(.URL)
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
-            .disabled(model.isBusy)
+            .disabled(isWorking)
             .accessibilityLabel("Scanner-Adresse")
 
             Button(model.isConnected ? "Neu verbinden" : "Verbinden") {
@@ -97,7 +101,7 @@ struct AirScanScannerView: View {
               model.connect(address: address)
             }
             .disabled(
-              model.isBusy
+              isWorking
                 || address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             )
 
@@ -171,9 +175,80 @@ struct AirScanScannerView: View {
         if model.capabilities != nil {
           AirScanSettingsSection(
             selection: selection,
-            isBusy: model.isBusy
+            isBusy: isWorking
           )
         }
+        if let capabilities = model.capabilities {
+  Section {
+    if scan.isBusy {
+      ProgressView("Scan wird verarbeitet …")
+
+      LabeledContent(
+        "Gespeicherte Bildseiten",
+        value: String(scan.receivedPages)
+      )
+
+      Button("Scan abbrechen", role: .cancel) {
+        scan.cancel()
+      }
+    } else {
+      Button {
+        guard let option = selection.selectedOption else { return }
+
+        discovery.stop()
+        scan.start(
+          address: address,
+          settings: option.settings,
+          capabilities: capabilities,
+          expectedPages: selection.expectedPages
+        )
+      } label: {
+        Label("Scan starten", systemImage: "scanner")
+      }
+      .disabled(
+        isWorking
+          || !model.isConnected
+          || selection.selectedOption == nil
+      )
+    }
+
+    if let message = scan.message {
+      Text(message)
+        .foregroundStyle(.secondary)
+    }
+
+    if let error = scan.errorMessage {
+      Text(error)
+        .foregroundStyle(.red)
+    }
+
+    if scan.cleanupWarning {
+      Text(
+        "Die Seiten wurden empfangen, aber das Aufräumen "
+          + "des Geräteauftrags konnte nicht bestätigt werden. "
+          + "Scannerzustand vor einem erneuten Start prüfen."
+      )
+      .foregroundStyle(.orange)
+    }
+
+    if let directory = scan.directory {
+      LabeledContent(
+        "Lokaler Scan-Ordner",
+        value: directory.lastPathComponent
+      )
+      .font(.caption)
+      .textSelection(.enabled)
+    }
+  } header: {
+    Text("Scan")
+  } footer: {
+    Text(
+      "Die Bildseiten werden lokal aufbewahrt. "
+        + "PDF-Erstellung und Dokumentimport sind noch nicht angebunden."
+    )
+  }
+}
+
         if let status = model.status {
           Section("Aktueller Status") {
             LabeledContent(
@@ -188,7 +263,7 @@ struct AirScanScannerView: View {
             Button("Status aktualisieren") {
               model.refreshStatus()
             }
-            .disabled(model.isBusy)
+            .disabled(isWorking)
           }
         }
 
@@ -196,8 +271,8 @@ struct AirScanScannerView: View {
           Toggle("Debug-Ansicht anzeigen", isOn: $debugEnabled)
         } footer: {
           Text(
-            "Entwicklungsstand: Diese Ansicht liest Fähigkeiten und Status. "
-              + "Die Scan-Bedienung wird im nächsten Schritt angebunden."
+            "Entwicklungsstand: Scan-Bedienung und lokale Seitenspeicherung. "
+              + "PDF-Erstellung und Dokumentimport folgen separat."
           )
         }
 
@@ -227,11 +302,11 @@ struct AirScanScannerView: View {
           Button("Schließen") {
             dismiss()
           }
-          .disabled(model.isBusy)
+          .disabled(isWorking)
         }
       }
     }
-    .interactiveDismissDisabled(model.isBusy)
+    .interactiveDismissDisabled(isWorking)
     .onAppear {
       if !model.isConnected {
         discovery.start()
@@ -246,6 +321,7 @@ struct AirScanScannerView: View {
     .onDisappear {
       discovery.stop()
       model.cancel()
+      scan.cancel()
     }
   }
 
