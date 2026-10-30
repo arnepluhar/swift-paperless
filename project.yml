@@ -23,6 +23,8 @@ fileGroups:
   - project.yml
 
 packages:
+  AirScan:
+    path: AirScan
   Common:
     path: Common
   DataModel:
@@ -61,6 +63,7 @@ targets:
       - path: docs/libraries.md
         buildPhase: resources
     dependencies:
+      - package: AirScan
       - target: ShareExtension
         embed: true
         codeSignOnCopy: true
