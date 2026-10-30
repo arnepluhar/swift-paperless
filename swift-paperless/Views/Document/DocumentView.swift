@@ -99,6 +99,7 @@ struct DocumentView: View {
   @State private var isDataScannerAvailable = false
   @State private var showDocumentScanner = false
   @State private var showAirScanScanner = false
+  @State private var pendingAirScanPDF: URL?
   @State private var showCreateModal = false
 
   @StateObject private var importModel = DocumentImportModel()
@@ -731,8 +732,44 @@ struct DocumentView: View {
       }
     )
 
-    .sheet(isPresented: $showAirScanScanner) {
-      AirScanScannerView()
+    .sheet(
+      isPresented: $showAirScanScanner,
+      onDismiss: {
+        guard let url = pendingAirScanPDF else { return }
+        pendingAirScanPDF = nil
+
+        Task { @MainActor in
+          guard store.permissions.test(.add, for: .document) else {
+            errorController.push(
+              message: "Keine Berechtigung zum Anlegen von Dokumenten."
+            )
+            return
+          }
+
+          guard FileManager.default.fileExists(atPath: url.path) else {
+            errorController.push(
+              message: "Das erzeugte Scan-PDF wurde nicht gefunden."
+            )
+            return
+          }
+
+          importModel.reset()
+          await importModel.importFile(
+            result: [url],
+            isSecurityScoped: false,
+            errorController: errorController
+          )
+
+          if importModel.remaining > 0 {
+            showCreateModal = true
+          }
+        }
+      }
+    ) {
+      AirScanScannerView { url in
+        pendingAirScanPDF = url
+        showAirScanScanner = false
+      }
     }
 
     .fullScreenCover(isPresented: $showDocumentScanner) {

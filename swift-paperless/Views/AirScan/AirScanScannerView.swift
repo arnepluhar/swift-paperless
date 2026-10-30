@@ -3,6 +3,9 @@ import SwiftUI
 
 @MainActor
 struct AirScanScannerView: View {
+  let onImport: (URL) -> Void
+
+  @State private var importRequested = false
   @Environment(\.dismiss) private var dismiss
   @StateObject private var model = AirScanScannerModel()
   @StateObject private var discovery = AirScanDiscoveryModel()
@@ -16,7 +19,7 @@ struct AirScanScannerView: View {
   @AppStorage("airscan.debugPanelEnabled")
   private var debugEnabled = false
   private var isWorking: Bool {
-    model.isBusy || scan.isBusy
+    model.isBusy || scan.isBusy || importRequested
   }
 
   var body: some View {
@@ -232,6 +235,18 @@ struct AirScanScannerView: View {
             }
 
             if let pdfURL = scan.pdfURL {
+              Button {
+                guard !importRequested else { return }
+                importRequested = true
+                onImport(pdfURL)
+              } label: {
+                Label(
+                  "Als Dokument übernehmen",
+                  systemImage: "doc.badge.plus"
+                )
+              }
+              .disabled(isWorking)
+
               ShareLink(item: pdfURL) {
                 Label("PDF teilen", systemImage: "square.and.arrow.up")
               }
@@ -252,7 +267,7 @@ struct AirScanScannerView: View {
             Text(
               "Nach einem bestätigten Scan wird ein PDF erstellt. "
                 + "Die JPEG-Seiten bleiben erhalten. "
-                + "Der direkte Dokumentimport folgt separat."
+                + "Die Übernahme in den Dokumentimport ist angebunden."
             )
           }
         }
@@ -280,7 +295,7 @@ struct AirScanScannerView: View {
         } footer: {
           Text(
             "Entwicklungsstand: Scan, lokale Seitenspeicherung und PDF-Erstellung. "
-              + "Der direkte Dokumentimport folgt separat."
+              + "Die Übernahme in den Dokumentimport ist angebunden."
           )
         }
 
