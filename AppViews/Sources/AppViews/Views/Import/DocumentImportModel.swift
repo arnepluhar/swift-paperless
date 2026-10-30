@@ -21,12 +21,14 @@ public class DocumentImportModel: ObservableObject {
   public var totalUrls = 0
 
   public var remaining: Int {
-    totalUrls - importUrls.count + 1
+    guard !importUrls.isEmpty else { return 0 }
+    return totalUrls - importUrls.count + 1
   }
 
   public func reset() {
     importUrls = []
     totalUrls = 0
+    done = false
   }
 
   public func next() -> URL? {
