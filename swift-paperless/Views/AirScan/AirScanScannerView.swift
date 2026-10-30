@@ -16,7 +16,7 @@ struct AirScanScannerView: View {
   @AppStorage("airscan.debugPanelEnabled")
   private var debugEnabled = false
   private var isWorking: Bool {
-  model.isBusy || scan.isBusy
+    model.isBusy || scan.isBusy
   }
 
   var body: some View {
@@ -179,75 +179,83 @@ struct AirScanScannerView: View {
           )
         }
         if let capabilities = model.capabilities {
-  Section {
-    if scan.isBusy {
-      ProgressView("Scan wird verarbeitet …")
+          Section {
+            if scan.isBusy {
+              ProgressView("Scan / PDF wird verarbeitet …")
 
-      LabeledContent(
-        "Gespeicherte Bildseiten",
-        value: String(scan.receivedPages)
-      )
+              LabeledContent(
+                "Gespeicherte Bildseiten",
+                value: String(scan.receivedPages)
+              )
 
-      Button("Scan abbrechen", role: .cancel) {
-        scan.cancel()
-      }
-    } else {
-      Button {
-        guard let option = selection.selectedOption else { return }
+              Button("Scan abbrechen", role: .cancel) {
+                scan.cancel()
+              }
+            } else {
+              Button {
+                guard let option = selection.selectedOption else { return }
 
-        discovery.stop()
-        scan.start(
-          address: address,
-          settings: option.settings,
-          capabilities: capabilities,
-          expectedPages: selection.expectedPages
-        )
-      } label: {
-        Label("Scan starten", systemImage: "scanner")
-      }
-      .disabled(
-        isWorking
-          || !model.isConnected
-          || selection.selectedOption == nil
-      )
-    }
+                discovery.stop()
+                scan.start(
+                  address: address,
+                  settings: option.settings,
+                  capabilities: capabilities,
+                  expectedPages: selection.expectedPages
+                )
+              } label: {
+                Label("Scan starten", systemImage: "scanner")
+              }
+              .disabled(
+                isWorking
+                  || !model.isConnected
+                  || selection.selectedOption == nil
+              )
+            }
 
-    if let message = scan.message {
-      Text(message)
-        .foregroundStyle(.secondary)
-    }
+            if let message = scan.message {
+              Text(message)
+                .foregroundStyle(.secondary)
+            }
 
-    if let error = scan.errorMessage {
-      Text(error)
-        .foregroundStyle(.red)
-    }
+            if let error = scan.errorMessage {
+              Text(error)
+                .foregroundStyle(.red)
+            }
 
-    if scan.cleanupWarning {
-      Text(
-        "Die Seiten wurden empfangen, aber das Aufräumen "
-          + "des Geräteauftrags konnte nicht bestätigt werden. "
-          + "Scannerzustand vor einem erneuten Start prüfen."
-      )
-      .foregroundStyle(.orange)
-    }
+            if scan.cleanupWarning {
+              Text(
+                "Die Seiten wurden empfangen, aber das Aufräumen "
+                  + "des Geräteauftrags konnte nicht bestätigt werden. "
+                  + "Scannerzustand vor einem erneuten Start prüfen."
+              )
+              .foregroundStyle(.orange)
+            }
 
-    if let directory = scan.directory {
-      LabeledContent(
-        "Lokaler Scan-Ordner",
-        value: directory.lastPathComponent
-      )
-      .font(.caption)
-      .textSelection(.enabled)
-    }
-  } header: {
-    Text("Scan")
-  } footer: {
-    Text(
-      "Die Bildseiten werden lokal aufbewahrt. "
-        + "PDF-Erstellung und Dokumentimport sind noch nicht angebunden."
-    )
-  }
-}
+            if let pdfURL = scan.pdfURL {
+              ShareLink(item: pdfURL) {
+                Label("PDF teilen", systemImage: "square.and.arrow.up")
+              }
+              .disabled(isWorking)
+            }
+
+            if let directory = scan.directory {
+              LabeledContent(
+                "Lokaler Scan-Ordner",
+                value: directory.lastPathComponent
+              )
+              .font(.caption)
+              .textSelection(.enabled)
+            }
+          } header: {
+            Text("Scan")
+          } footer: {
+            Text(
+              "Nach einem bestätigten Scan wird ein PDF erstellt. "
+                + "Die JPEG-Seiten bleiben erhalten. "
+                + "Der direkte Dokumentimport folgt separat."
+            )
+          }
+        }
 
         if let status = model.status {
           Section("Aktueller Status") {
@@ -271,8 +279,8 @@ struct AirScanScannerView: View {
           Toggle("Debug-Ansicht anzeigen", isOn: $debugEnabled)
         } footer: {
           Text(
-            "Entwicklungsstand: Scan-Bedienung und lokale Seitenspeicherung. "
-              + "PDF-Erstellung und Dokumentimport folgen separat."
+            "Entwicklungsstand: Scan, lokale Seitenspeicherung und PDF-Erstellung. "
+              + "Der direkte Dokumentimport folgt separat."
           )
         }
 

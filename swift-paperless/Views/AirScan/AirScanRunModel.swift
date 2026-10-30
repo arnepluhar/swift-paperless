@@ -43,6 +43,7 @@ final class AirScanRunModel: ObservableObject {
   @Published private(set) var cleanupWarning = false
   @Published private(set) var completed = false
   @Published private(set) var directory: URL?
+  @Published private(set) var pdfURL: URL?
 
   private var work: Task<Void, Never>?
 
@@ -61,6 +62,7 @@ final class AirScanRunModel: ObservableObject {
     cleanupWarning = false
     completed = false
     directory = nil
+    pdfURL = nil
 
     work = Task { @MainActor in
       defer {
@@ -145,7 +147,24 @@ final class AirScanRunModel: ObservableObject {
 
         try Task.checkCancellation()
         self.completed = true
-        self.message = "Scan abgeschlossen. \(self.receivedPages) Bildseite(n) gespeichert."
+        self.message = "Scan bestätigt. PDF wird erstellt …"
+
+        do {
+          let pdf = try AirScanPDFBuilder.build(
+            directory: directory,
+            pageCount: self.receivedPages,
+            resolution: settings.resolution
+          )
+          self.pdfURL = pdf
+          self.message =
+            "Scan abgeschlossen. PDF mit \(self.receivedPages) Seite(n) erstellt."
+        } catch {
+          self.message =
+            "Scan bestätigt; die Bildseiten bleiben lokal gespeichert."
+          self.errorMessage =
+            "Das PDF konnte nicht erstellt werden. "
+            + "Die gespeicherten JPEG-Seiten bleiben erhalten."
+        }
       } catch {
         if Task.isCancelled || error is CancellationError {
           self.message =
