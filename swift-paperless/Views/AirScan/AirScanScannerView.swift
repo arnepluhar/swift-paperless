@@ -6,6 +6,7 @@ struct AirScanScannerView: View {
   @Environment(\.dismiss) private var dismiss
   @StateObject private var model = AirScanScannerModel()
   @StateObject private var discovery = AirScanDiscoveryModel()
+  @StateObject private var selection = AirScanSelectionModel()
   @State private var manualExpanded = false
 
   @AppStorage("airscan.manualResourceRoot")
@@ -167,7 +168,12 @@ struct AirScanScannerView: View {
             }
           }
         }
-
+        if model.capabilities != nil {
+          AirScanSettingsSection(
+            selection: selection,
+            isBusy: model.isBusy
+          )
+        }
         if let status = model.status {
           Section("Aktueller Status") {
             LabeledContent(
@@ -233,6 +239,9 @@ struct AirScanScannerView: View {
     }
     .onChange(of: address) { _, _ in
       model.invalidateConnection()
+    }
+    .onChange(of: model.capabilities) { _, capabilities in
+      selection.configure(capabilities)
     }
     .onDisappear {
       discovery.stop()
