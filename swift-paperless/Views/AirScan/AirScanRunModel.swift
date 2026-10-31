@@ -150,15 +150,19 @@ final class AirScanRunModel: ObservableObject {
         self.message = "Scan bestätigt. PDF wird erstellt …"
 
         do {
-          let pdf = try AirScanPDFBuilder.build(
+          let pdf = try await AirScanPDFBuilder.build(
             directory: directory,
             pageCount: self.receivedPages,
             resolution: settings.resolution
           )
+          try Task.checkCancellation()
           self.pdfURL = pdf
           self.message =
             "Scan abgeschlossen. PDF mit \(self.receivedPages) Seite(n) erstellt."
+        } catch is CancellationError {
+          throw CancellationError()
         } catch {
+          try Task.checkCancellation()
           self.message =
             "Scan bestätigt; die Bildseiten bleiben lokal gespeichert."
           self.errorMessage =
@@ -187,7 +191,7 @@ final class AirScanRunModel: ObservableObject {
 
   func cancel() {
     guard isBusy else { return }
-    message = "Abbruch angefordert; Geräteauftrag wird aufgeräumt …"
+    message = "Abbruch angefordert; laufende Verarbeitung wird beendet …"
     work?.cancel()
   }
 

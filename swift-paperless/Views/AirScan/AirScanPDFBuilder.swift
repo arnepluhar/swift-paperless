@@ -1,10 +1,12 @@
+import CoreGraphics
 import Foundation
-import UIKit
+import ImageIO
 
 enum AirScanPDFError: Error {
   case invalidConfiguration
   case unreadablePage(Int)
   case invalidImageSize(Int)
+  case cannotCreatePDF
   case emptyPDF
 }
 
@@ -14,81 +16,107 @@ enum AirScanPDFBuilder {
     directory: URL,
     pageCount: Int,
     resolution: Int
-  ) throws -> URL {
+  ) async throws -> URL {
+    try await AirScanPDFWorker().build(
+      directory: directory,
+      pageCount: pageCount,
+      resolution: resolution
+    )
+  }
+}
+
+private actor AirScanPDFWorker {
+  func build(
+    directory: URL,
+    pageCount: Int,
+    resolution: Int
+  ) async throws -> URL {
     guard (1...100).contains(pageCount), resolution > 0 else {
       throw AirScanPDFError.invalidConfiguration
     }
+    try Task.checkCancellation()
 
     let destination = directory.appendingPathComponent("scan.pdf")
     let temporary = directory.appendingPathComponent(
       "scan-\(UUID().uuidString).partial.pdf"
     )
+    defer { try? FileManager.default.removeItem(at: temporary) }
 
+    var defaultBounds = CGRect(x: 0, y: 0, width: 1, height: 1)
+    guard let consumer = CGDataConsumer(url: temporary as CFURL),
+          let context = CGContext(
+            consumer: consumer, mediaBox: &defaultBounds, nil
+          ) else {
+      throw AirScanPDFError.cannotCreatePDF
+    }
+    var closed = false
     defer {
-      try? FileManager.default.removeItem(at: temporary)
+      if !closed { context.closePDF() }
     }
 
-    let renderer = UIGraphicsPDFRenderer(
-      bounds: CGRect(x: 0, y: 0, width: 1, height: 1)
-    )
-    var pageError: AirScanPDFError?
-
-    try renderer.writePDF(to: temporary) { context in
-      for number in 1...pageCount {
-        autoreleasepool {
-          guard pageError == nil else { return }
-
-          let filename = String(format: "page-%04d.jpg", number)
-          let source = directory.appendingPathComponent(filename)
-
-          guard let image = UIImage(contentsOfFile: source.path),
-                image.cgImage != nil else {
-            pageError = .unreadablePage(number)
-            return
-          }
-
-          // UIImage's oriented size accounts for image orientation.
-          // Convert pixel dimensions to PDF points using the selected dpi.
-          let pixelWidth = image.size.width * image.scale
-          let pixelHeight = image.size.height * image.scale
-          let width = pixelWidth * 72 / CGFloat(resolution)
-          let height = pixelHeight * 72 / CGFloat(resolution)
-
-          guard width.isFinite, height.isFinite,
-                width > 0, height > 0 else {
-            pageError = .invalidImageSize(number)
-            return
-          }
-
-          let bounds = CGRect(x: 0, y: 0, width: width, height: height)
-          context.beginPage(withBounds: bounds, pageInfo: [:])
-          image.draw(in: bounds)
+    for number in 1...pageCount {
+      try Task.checkCancellation()
+      try autoreleasepool {
+        let filename = String(format: "page-%04d.jpg", number)
+        let sourceURL = directory.appendingPathComponent(filename)
+        guard let source = CGImageSourceCreateWithURL(
+          sourceURL as CFURL,
+          [kCGImageSourceShouldCache: false] as CFDictionary
+        ), let properties = CGImageSourceCopyPropertiesAtIndex(
+          source, 0, nil
+        ) as? [CFString: Any],
+          let widthValue = properties[kCGImagePropertyPixelWidth] as? NSNumber,
+          let heightValue = properties[kCGImagePropertyPixelHeight] as? NSNumber else {
+          throw AirScanPDFError.unreadablePage(number)
         }
 
-        if pageError != nil {
-          break
+        let sourceWidth = widthValue.intValue
+        let sourceHeight = heightValue.intValue
+        guard sourceWidth > 0, sourceHeight > 0,
+              sourceWidth <= 100_000_000 / sourceHeight else {
+          throw AirScanPDFError.invalidImageSize(number)
         }
+
+        // Decode at original pixel dimensions while applying EXIF orientation.
+        let options: [CFString: Any] = [
+          kCGImageSourceCreateThumbnailFromImageAlways: true,
+          kCGImageSourceCreateThumbnailWithTransform: true,
+          kCGImageSourceThumbnailMaxPixelSize: max(sourceWidth, sourceHeight),
+          kCGImageSourceShouldCacheImmediately: true
+        ]
+        guard let image = CGImageSourceCreateThumbnailAtIndex(
+          source, 0, options as CFDictionary
+        ) else {
+          throw AirScanPDFError.unreadablePage(number)
+        }
+        try Task.checkCancellation()
+
+        let width = CGFloat(image.width) * 72 / CGFloat(resolution)
+        let height = CGFloat(image.height) * 72 / CGFloat(resolution)
+        guard width.isFinite, height.isFinite, width > 0, height > 0 else {
+          throw AirScanPDFError.invalidImageSize(number)
+        }
+
+        var bounds = CGRect(x: 0, y: 0, width: width, height: height)
+        let boxData = NSData(bytes: &bounds, length: MemoryLayout<CGRect>.size)
+        let pageInfo = [kCGPDFContextMediaBox: boxData] as CFDictionary
+        context.beginPDFPage(pageInfo)
+        context.draw(image, in: bounds)
+        context.endPDFPage()
       }
+      await Task.yield()
     }
 
-    if let pageError {
-      throw pageError
-    }
+    try Task.checkCancellation()
+    context.closePDF()
+    closed = true
+    try Task.checkCancellation()
 
-    let attributes = try FileManager.default.attributesOfItem(
-      atPath: temporary.path
-    )
-    guard let size = attributes[.size] as? NSNumber,
-          size.int64Value > 0 else {
+    let attributes = try FileManager.default.attributesOfItem(atPath: temporary.path)
+    guard let size = attributes[.size] as? NSNumber, size.int64Value > 0 else {
       throw AirScanPDFError.emptyPDF
     }
-
-    // Never replace an existing result silently.
-    try FileManager.default.moveItem(
-      at: temporary,
-      to: destination
-    )
-
+    try FileManager.default.moveItem(at: temporary, to: destination)
     return destination
   }
 }
